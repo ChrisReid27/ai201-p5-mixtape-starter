@@ -110,8 +110,16 @@
 |---|-------|-----------------|
 | 1 | My listening streak keeps resetting | `streak_service.py` |
 
-### How I reproduced it:
+I listen to something on Mixtape every single day — I haven't missed a day in weeks. On Saturday night my streak was at 12. Sunday morning I played a song like always, checked my profile, and my streak said 1. This is the second time it's happened, and both times it was a Sunday. Listening again on Monday bumped it to 2, so it's counting again — it just threw away my whole streak.
 
+Steps I took:
+
+Listened to a song every calendar day, including Saturday.
+Listened again Sunday morning and checked my streak (GET /users/<my_id>/streak).
+Expected: streak goes from 12 to 13 — I listened on consecutive days. Actual: streak shows 1, as if I'd skipped a day.
+
+### How I reproduced it:
+In `tests/test_streaks.py`, the final test within the suite is the Sunday-specific test designed for this issue. I ran it from the from the terminal using `pytest tests/test_streaks.py -k sunday -v`. The test creates a fresh user, calls `update_listening_streak` with Saturday, June 15, 2024, and then calls it again with Sunday, June 16, 2024. The first call sets the streak to 1 and the second should increase it to 2. Instead, the test fails with `assert 1 == 2`, reproducing the issue 1 issue.
 
 ## Root Cause Analysis Issue 2
 
@@ -119,8 +127,17 @@
 |---|-------|-----------------|
 | 2 | Friends Listening Now shows people from yesterday | `feed_service.py` |
 
-### How I reproduced it:
+"Friends Listening Now" is supposed to show me what my friends are playing right now — or at least what they've played today. This morning around 9am it showed darius "listening now" to a song he told me he played at 11pm last night, before he went to bed. He hadn't opened the app all morning. Stuff from yesterday evening keeps hanging around in the feed until the same time the next day.
 
+Steps I took:
+
+Opened my feed in the morning (GET /feed/<my_id>/listening-now).
+Cross-checked with darius: his last listen was the previous night.
+Expected: only friends who have listened today appear. Actual: friends whose last listen was yesterday evening still show up the next morning.
+
+
+### How I reproduced it:
+In the test suite, I made a temporary test called `test_feed_reproduction.py` and ran it with `pytest tests/test_feed_reproduction.py -v`. The test created a viewer, a friend, a friendship between them on the system, and a valid song. It then created one `ListeningEvent` for the friend with its timestamp set to the previous evening, approximately 10 hours before the feed request. No newer listening event was created for that friend. This test called `get_friends_listening_now(viewer.id)` and expected an empty feed because the friend had not listened during the current calendar day. Instead, the feed included the friend's event from before because it was still within the service's rolling 24-hour window, failing the temp test, and issue 2 was recreated.
 
 ## Root Cause Analysis Issue 3
 
@@ -128,5 +145,13 @@
 |---|-------|-----------------|
 | 3 | The same song keeps showing up twice in search | `search_service.py` |
 
-### How I reproduced it:
+When I search, some songs come back two or even three times — identical entries, same song. I searched "Anthem" and Crown Heights Anthem by Borough Kings showed up three times in the results. Other songs only show up once. Nothing about the duplicates looks different; it's just the same result repeated.
 
+Steps I took:
+
+Searched for a song (GET /songs/search?q=Anthem).
+Counted the results.
+Expected: each matching song appears exactly once. Actual: some songs appear once, others two or three times, for a single-song match.
+
+### How I reproduced it:
+The app state requires that the database has a valid user, a valid song whose title or artist matches the search query, and at mimnimum two tags asscociated with the song. The testing data in this example is Crown Heights Anthem for the song, the artist is Borough Kings, and the tags are rap, hip-hop, and boom bap. In tests folder, in `test_search.py`, there's a test called `test_search_no_duplicates_multi_tag_song` and I ran it with `pytest tests/test_search.py -k multi_tag -v`. The test simulates the song Crown Heights Anthem getting assigned its tags. Then matching results displays the song three times, therefore failing the test and mimicking issue 3.
