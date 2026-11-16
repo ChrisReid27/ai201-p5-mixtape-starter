@@ -185,9 +185,13 @@ Expected: each matching song appears exactly once. Actual: some songs appear onc
 The app state requires that the database has a valid user, a valid song whose title or artist matches the search query, and at mimnimum two tags asscociated with the song. The testing data in this example is Crown Heights Anthem for the song, the artist is Borough Kings, and the tags are rap, hip-hop, and boom bap. In tests folder, in `test_search.py`, there's a test called `test_search_no_duplicates_multi_tag_song` and I ran it with `pytest tests/test_search.py -k multi_tag -v`. The test simulates the song Crown Heights Anthem getting assigned its tags. Then matching results displays the song three times, therefore failing the test and mimicking issue 3.
 
 ### How I found the root cause:
+I followed the search request from `routes/songs.py` to `search_songs` in `services/search_service.py`, then checked how tags are represented in `models.py`. The reproduction used one matching song with three tag associations. The cause became clear when I saw that the search query selected `Song` while also outer joining `song_tags`, even though the query didn't filter by tags. That join produces three database rows for the one song, matching the three duplicate results in the failing test.
 
 ### The root cause:
+The search query joined each matching song to its rows in the `song_tags` association table. A song with three tags therefore appeared as three database result rows. The service serialized every returned row, so the same song was returned once for each tag.
 
 ### My fix:
+I removed the unnecessary `song_tags` outer join from `search_songs` and kept the title and artist filters on `Song`. The song's tags are already included by `Song.to_dict()` through the model relationship, so the join was not needed to build the response. Each matching song now produces one result row while still including its tag names.
 
 ### My side effect check(s):
+I ran the full search test module with `pytest tests/test_search.py -v`; all 5 tests passed. This covered title and artist matching, songs with zero, one, and multiple tags, and no-match searches. As the last issue I'm fixing, I also ran the full test suite to make sure I didn't affect any other system functionality outside of what I set out to fix. The search, feed, and streak tests passed, while the two remaining unrelated playlist failures are still there.
