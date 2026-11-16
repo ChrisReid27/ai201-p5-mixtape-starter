@@ -122,12 +122,17 @@ Expected: streak goes from 12 to 13 — I listened on consecutive days. Actual: 
 In `tests/test_streaks.py`, the final test within the suite is the Sunday-specific test designed for this issue. I ran it from the from the terminal using `pytest tests/test_streaks.py -k sunday -v`. The test creates a fresh user, calls `update_listening_streak` with Saturday, June 15, 2024, and then calls it again with Sunday, June 16, 2024. The first call sets the streak to 1 and the second should increase it to 2. Instead, the test fails with `assert 1 == 2`, reproducing the issue 1 issue.
 
 ### How I found the root cause:
+I followed the listening request from `routes/songs.py` to `record_listening_event` in `services/streak_service.py`, and then into `update_listening_streak`. In that function, I checked the values for the Saturday-to-Sunday reproduction: `days_since_last` is `1`, but Sunday had `today.weekday() == 6`. The increment condition needs both `days_since_last == 1` and `today.weekday() != 6`, so the Sunday case skipped the increment branch but still reached the reset branch. The Sunday-specific test failed with `assert 1 == 2`, confirming that this exact condition caused the reported result.
+
 
 ### The root cause:
+The consecutive-day condition explicitly excluded Sunday. Even though a Saturday listen followed by a Sunday listen has a one-day difference, the `today.weekday() != 6` check evaluated to false on Sunday. So the code just treated Sunday as a skipped day and reset the streak to `1` instead of incrementing it.
 
 ### My fix:
+I changed the condition in `update_listening_streak` by taking `days_since_last == 1 and today.weekday() != 6` and shortening it to just `days_since_last == 1`. The date difference already identifies whether the previous listen was on the immediately preceding calendar day, so consecutive Sunday listens now use the same increment path as every other consecutive day.
 
 ### My side effect check(s):
+I ran the full streak test module with `pytest tests/test_streaks.py -v` in my venv. All 5 tests passed, covering a new user's initial streak, a regular consecutive day, repeated listening on the same day, a skipped day reset, and the Saturday-to-Sunday transition. This confirmed that the fix corrected the Sunday reset issue and still preserves the other streak rules.
 
 
 ## Root Cause Analysis Issue 2
