@@ -34,10 +34,12 @@ def test_yesterday_event_appears_in_listening_now_feed():
         db.session.add(song)
         db.session.flush()
 
+        now = datetime.now(timezone.utc)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         event = ListeningEvent(
             user_id=friend.id,
             song_id=song.id,
-            listened_at=datetime.now(timezone.utc) - timedelta(hours=10),
+            listened_at=today_start - timedelta(minutes=1),
         )
         db.session.add(event)
         db.session.commit()
