@@ -154,12 +154,17 @@ Expected: only friends who have listened today appear. Actual: friends whose las
 In the test suite, I made a temporary test called `test_feed_reproduction.py` and ran it with `pytest tests/test_feed_reproduction.py -v`. The test created a viewer, a friend, a friendship between them on the system, and a valid song. It then created one `ListeningEvent` for the friend with its timestamp set to the previous evening, approximately 10 hours before the feed request. No newer listening event was created for that friend. This test called `get_friends_listening_now(viewer.id)` and expected an empty feed because the friend had not listened during the current calendar day. Instead, the feed included the friend's event from before because it was still within the service's rolling 24-hour window, failing the temp test, and issue 2 was recreated.
 
 ### How I found the root cause:
+I followed the feed request from `routes/feed.py` to `get_friends_listening_now` in `services/feed_service.py`. The reproduction used an event from the previous evening, about 10 hours before the request. The specific cause became clear when I found that the service calculated its cutoff as `datetime.now(timezone.utc) - timedelta(hours=24)`. That cutoff includes the previous evening's event, which matched the failing reproduction.
+
 
 ### The root cause:
+The "listening now" query used a rolling 24-hour time window instead of whatever the current calendar day was. An event from yesterday at 11 PM is still less than 24 hours old when the feed is checked at 9 AM, so the `ListeningEvent.listened_at >= cutoff` filter included it in the feed.
 
 ### My fix:
+I changed the cutoff calculation in `get_friends_listening_now` to the start of the current UTC day by setting the current time's hour, minute, second, and microsecond values to zero. Events are now included only when their `listened_at` value is on or after today's UTC midnight, which excludes events from the previous calendar day.
 
 ### My side effect check(s):
+I updated `tests/test_feed_reproduction.py` so the event is placed one minute before today's UTC midnight, making it a deterministic previous-day event. I ran the feed regression test and the existing streak tests with `pytest tests/test_feed_reproduction.py tests/test_streaks.py -v` and all 6 tests passed.
 
 
 ## Root Cause Analysis Issue 3
