@@ -1,3 +1,6 @@
+## AI Usage
+During this project Copilot helped alot. This codebase is relatively big so querying with Copliot allowed me to narrow down where the issues' root causes were. This was definitley true for issue 2 more than issues 1 and 3. When it came to reproducing the issues, using the testing suite was the main way to recreate the problems so I didn't need to use AI too much. For the tracing of navigation paths when first beginning the project, Copliot helped mapping alot becuase it broke it down with ascii that I could better understand.
+
 ## Mixtape Codebase Map
 
 ### The main app files
@@ -195,3 +198,7 @@ I removed the unnecessary `song_tags` outer join from `search_songs` and kept th
 
 ### My side effect check(s):
 I ran the full search test module with `pytest tests/test_search.py -v`; all 5 tests passed. This covered title and artist matching, songs with zero, one, and multiple tags, and no-match searches. As the last issue I'm fixing, I also ran the full test suite to make sure I didn't affect any other system functionality outside of what I set out to fix. The search, feed, and streak tests passed, while the two remaining unrelated playlist failures are still there.
+
+
+## Commit log screenshot
+![alt text](<Screenshot 2026-11-16 145711.png>)
